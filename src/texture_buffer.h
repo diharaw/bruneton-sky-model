@@ -20,8 +20,6 @@ struct TextureBuffer
 
     static Texture* new_render_texture_2d(int width, int height, bool half_precision);
     static Texture* new_render_texture_3d(int width, int height, int depth, bool half_precision);
-    static Texture* new_texture_2d(int width, int height, bool half_precision);
-    static Texture* new_texture_3d(int width, int height, int depth, bool half_precision);
 
 private:
     void clear_array(Program* program, Texture** arr);

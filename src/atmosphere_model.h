@@ -221,7 +221,7 @@ private:
     void sky_sun_radiance_to_luminance(glm::vec3& sky_spectral_radiance_to_luminance, glm::vec3& sun_spectral_radiance_to_luminance);
     void precompute(TextureBuffer buffer, double lambdas[], double luminance_from_radiance[], bool blend, int num_scattering_orders);
     void swap(RenderTexture arr[]);
-    float[] to_matrix(double arr[]);
+    glm::mat4 to_matrix(double arr[]);
 
     static double cie_color_matching_function_table_value(double wavelength, int column);
     static double interpolate(std::vector<double> wavelengths, std::vector<double> wavelength_function, double wavelength);

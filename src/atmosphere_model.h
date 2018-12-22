@@ -1,3 +1,7 @@
+#include <string>
+#include <vector>
+#include "constants.h"
+#include "texture_buffer.h"
 
 /// <summary>
 /// An atmosphere layer of width 'width' (in m), and whose density is defined as
@@ -76,7 +80,7 @@ public:
     /// ignored, i.e. it always extend to the top atmosphere boundary. At most 2
     /// layers can be specified.
     /// </summary>
-    DensityProfileLayer m_rayleigh_density;
+    DensityProfileLayer* m_rayleigh_density;
 
     /// <summary>
     /// The scattering coefficient of air molecules at the altitude where their
@@ -94,7 +98,7 @@ public:
     /// ignored, i.e. it always extend to the top atmosphere boundary. At most 2
     /// layers can be specified.
     /// </summary>
-    DensityProfileLayer m_mie_density;
+    DensityProfileLayer* m_mie_density;
 
     /// <summary>
     /// The scattering coefficient of aerosols at the altitude where their
@@ -126,7 +130,7 @@ public:
     /// width of the last layer is ignored, i.e. it always extend to the top
     /// atmosphere boundary. At most 2 layers can be specified.
     /// </summary>
-    std::vector<DensityProfileLayer> m_absorption_density;
+    std::vector<DensityProfileLayer*> m_absorption_density;
 
     /// <summary>
     /// The extinction coefficient of molecules that absorb light (e.g. ozone) at
@@ -179,7 +183,7 @@ public:
     /// </summary>
     int m_num_precomputed_wavelengths;
 
-    inline int num_precomputed_wavelengths() { return m_use_luminance == LUMINANCE.PRECOMPUTED ? 15 : 3; }
+    inline int num_precomputed_wavelengths() { return m_use_luminance == LUMINANCE::PRECOMPUTED ? 15 : 3; }
 
     /// <summary>
     /// Whether to pack the (red component of the) single Mie scattering with the
@@ -195,35 +199,31 @@ public:
     /// </summary>
     bool m_half_precision;
 
-    Texture* m_transmittance_texture;
-
-    Texture* m_scattering_texture;
-
-    Texture* m_irradiance_texture;
-
-    Texture* m_optional_single_mie_scattering_texture;
-
-    Program* m_compute_program;
+    dw::Texture* m_transmittance_texture;
+	dw::Texture* m_scattering_texture;
+	dw::Texture* m_irradiance_texture;
+	dw::Texture* m_optional_single_mie_scattering_texture;
+	dw::Program* m_compute_program;
 
 public:
     AtmosphereModel();
     ~AtmosphereModel();
 
     void initialize(int num_scattering_orders);
-    void bind_rendering_uniforms(Program* program);
+    void bind_rendering_uniforms(dw::Program* program);
     void convert_spectrum_to_linear_srgb(double& r, double& g, double& b);
    
 private:
     double coeff(double lambda, int component);
-    void bind_compute_uniforms(Program* program, double lambdas[], double luminance_from_radiance[]);
-    void bind_density_layer(Program* program, DensityProfileLayer layer);
-    glm::vec3 to_vector(std::vector<double> wavelengths, std::vector<double> v, std::vector<double> lambdas, double scale);
+    void bind_compute_uniforms(dw::Program* program, double lambdas[], double luminance_from_radiance[]);
+    void bind_density_layer(dw::Program* program, DensityProfileLayer* layer);
     void sky_sun_radiance_to_luminance(glm::vec3& sky_spectral_radiance_to_luminance, glm::vec3& sun_spectral_radiance_to_luminance);
     void precompute(TextureBuffer buffer, double lambdas[], double luminance_from_radiance[], bool blend, int num_scattering_orders);
-    void swap(RenderTexture arr[]);
+    void swap(dw::Texture** arr);
+	glm::vec3 to_vector(const std::vector<double>& wavelengths, const std::vector<double>& v, const std::vector<double>& lambdas, double scale);
     glm::mat4 to_matrix(double arr[]);
 
     static double cie_color_matching_function_table_value(double wavelength, int column);
-    static double interpolate(std::vector<double> wavelengths, std::vector<double> wavelength_function, double wavelength);
-    static void compute_spectral_radiance_to_luminance_factors(std::vector<double> wavelengths, std::vector<double> solar_irradiance, double lambda_power, double& k_r, double& k_g, double& k_b);
+    static double interpolate(const std::vector<double>& wavelengths, const std::vector<double>& wavelength_function, double wavelength);
+    static void compute_spectral_radiance_to_luminance_factors(const std::vector<double>& wavelengths, const std::vector<double>& solar_irradiance, double lambda_power, double& k_r, double& k_g, double& k_b);
 };

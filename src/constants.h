@@ -156,4 +156,7 @@ struct CONSTANTS
     static const int IRRADIANCE_HEIGHT = 16;
     static const int IRRADIANCE_CHANNELS = 3;
     static const int IRRADIANCE_SIZE = IRRADIANCE_WIDTH * IRRADIANCE_HEIGHT;
+
+	// The conversion factor between watts and lumens.
+	static const int MAX_LUMINOUS_EFFICACY = 683;
 };

@@ -15,12 +15,12 @@ struct TextureBuffer
     TextureBuffer(bool half_precision);
     ~TextureBuffer();
 
-    void clear(dw::Program* program);
+    void clear(dw::Program* program_2d, dw::Program* program_3d);
 	void new_texture_2d_array(dw::Texture** arr, int width, int height, bool half_precision);
     void new_texture_3d_array(dw::Texture** arr, int width, int height, int depth, bool half_precision);
 
-    static dw::Texture* new_render_texture_2d(int width, int height, bool half_precision);
-    static dw::Texture* new_render_texture_3d(int width, int height, int depth, bool half_precision);
+    static dw::Texture* new_texture_2d(int width, int height, bool half_precision);
+    static dw::Texture* new_texture_3d(int width, int height, int depth, bool half_precision);
 
 private:
     void clear_array(dw::Program* program, dw::Texture** arr);

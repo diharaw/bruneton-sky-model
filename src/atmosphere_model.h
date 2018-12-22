@@ -32,12 +32,15 @@ struct DensityProfileLayer
 class AtmosphereModel
 {
 private:
-    const double kLambdaR = 680.0;
-    const double kLambdaG = 550.0;
-    const double kLambdaB = 440.0;
+	#define READ 0
+	#define WRITE 1
 
-    const int kLambdaMin = 360;
-    const int kLambdaMax = 830;
+    #define kLambdaR 680.0
+    #define kLambdaG 550.0
+    #define kLambdaB 440.0
+
+    #define kLambdaMin 360
+    #define kLambdaMax 830
 
 public:
     /// <summary>
@@ -199,11 +202,17 @@ public:
     /// </summary>
     bool m_half_precision;
 
-    dw::Texture* m_transmittance_texture;
-	dw::Texture* m_scattering_texture;
-	dw::Texture* m_irradiance_texture;
-	dw::Texture* m_optional_single_mie_scattering_texture;
-	dw::Program* m_compute_program;
+    dw::Texture* m_transmittance_texture = nullptr;
+	dw::Texture* m_scattering_texture = nullptr;
+	dw::Texture* m_irradiance_texture = nullptr;
+	dw::Texture* m_optional_single_mie_scattering_texture = nullptr;
+	dw::Shader* m_transmittance_shader = nullptr;
+	dw::Program* m_transmittance_program = nullptr;
+	dw::Program* m_compute_program = nullptr;
+	dw::Shader* m_clear_2d_shader = nullptr;
+	dw::Shader* m_clear_3d_shader = nullptr;
+	dw::Program* m_clear_2d_program = nullptr;
+	dw::Program* m_clear_3d_program = nullptr;
 
 public:
     AtmosphereModel();
@@ -215,12 +224,12 @@ public:
    
 private:
     double coeff(double lambda, int component);
-    void bind_compute_uniforms(dw::Program* program, double lambdas[], double luminance_from_radiance[]);
+    void bind_compute_uniforms(dw::Program* program, double* lambdas, double* luminance_from_radiance);
     void bind_density_layer(dw::Program* program, DensityProfileLayer* layer);
     void sky_sun_radiance_to_luminance(glm::vec3& sky_spectral_radiance_to_luminance, glm::vec3& sun_spectral_radiance_to_luminance);
-    void precompute(TextureBuffer buffer, double lambdas[], double luminance_from_radiance[], bool blend, int num_scattering_orders);
+    void precompute(TextureBuffer* buffer, double* lambdas, double* luminance_from_radiance, bool blend, int num_scattering_orders);
     void swap(dw::Texture** arr);
-	glm::vec3 to_vector(const std::vector<double>& wavelengths, const std::vector<double>& v, const std::vector<double>& lambdas, double scale);
+	glm::vec3 to_vector(const std::vector<double>& wavelengths, const std::vector<double>& v, double lambdas[], double scale);
     glm::mat4 to_matrix(double arr[]);
 
     static double cie_color_matching_function_table_value(double wavelength, int column);

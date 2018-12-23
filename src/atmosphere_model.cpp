@@ -17,6 +17,16 @@ AtmosphereModel::AtmosphereModel()
 
 AtmosphereModel::~AtmosphereModel()
 {
+	for (auto layer : m_absorption_density)
+	{
+		DW_SAFE_DELETE(layer);
+	}
+
+	m_absorption_density.clear();
+
+	DW_SAFE_DELETE(m_mie_density);
+	DW_SAFE_DELETE(m_rayleigh_density);
+
 	DW_SAFE_DELETE(m_clear_2d_program);
 	DW_SAFE_DELETE(m_clear_3d_program);
 	DW_SAFE_DELETE(m_transmittance_program);
@@ -50,28 +60,28 @@ void AtmosphereModel::initialize(int num_scattering_orders)
 	if (m_combine_scattering_textures)
 		defines.push_back("COMBINED_SCATTERING_TEXTURES");
 
-	if (!dw::utility::create_compute_program("shaders/clear_2d_cs.glsl", &m_clear_2d_shader, &m_clear_2d_program))
+	if (!dw::utility::create_compute_program("shader/clear_2d_cs.glsl", &m_clear_2d_shader, &m_clear_2d_program))
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/clear_3d_cs.glsl", &m_clear_3d_shader, &m_clear_3d_program))
+	if (!dw::utility::create_compute_program("shader/clear_3d_cs.glsl", &m_clear_3d_shader, &m_clear_3d_program))
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_direct_irradiance_cs.glsl", &m_direct_irradiance_shader, &m_direct_irradiance_program), defines)
+	if (!dw::utility::create_compute_program("shader/compute_direct_irradiance_cs.glsl", &m_direct_irradiance_shader, &m_direct_irradiance_program, defines))
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_indirect_irradiance_cs.glsl", &m_indirect_irradiance_shader, &m_indirect_irradiance_program), defines)
+	if (!dw::utility::create_compute_program("shader/compute_indirect_irradiance_cs.glsl", &m_indirect_irradiance_shader, &m_indirect_irradiance_program, defines))
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_multiple_scattering_cs.glsl", &m_multiple_scattering_shader, &m_multiple_scattering_program), defines)
+	if (!dw::utility::create_compute_program("shader/compute_multiple_scattering_cs.glsl", &m_multiple_scattering_shader, &m_multiple_scattering_program, defines))
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_scattering_density_cs.glsl", &m_scattering_density_shader, &m_scattering_density_program), defines)
+	if (!dw::utility::create_compute_program("shader/compute_scattering_density_cs.glsl", &m_scattering_density_shader, &m_scattering_density_program, defines))
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_single_scattering_cs.glsl", &m_single_scattering_shader, &m_single_scattering_program), defines)
+	if (!dw::utility::create_compute_program("shader/compute_single_scattering_cs.glsl", &m_single_scattering_shader, &m_single_scattering_program, defines))
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_transmittance_cs.glsl", &m_transmittance_shader, &m_transmittance_program), defines)
+	if (!dw::utility::create_compute_program("shader/compute_transmittance_cs.glsl", &m_transmittance_shader, &m_transmittance_program, defines))
 		DW_LOG_ERROR("Failed to load shaders");
 
 	TextureBuffer* buffer = new TextureBuffer(m_half_precision);
@@ -121,6 +131,7 @@ void AtmosphereModel::initialize(int num_scattering_orders)
 		int NUM = CONSTANTS::NUM_THREADS;
 
 		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM, 1));
+		GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 
 		swap(buffer->m_transmittance_array);
 	}
@@ -341,6 +352,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 	m_transmittance_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
 
 	GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM_THREADS, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM_THREADS, 1));
+	GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 
 	swap(buffer->m_transmittance_array);
 
@@ -366,6 +378,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 	m_direct_irradiance_program->set_uniform("blend", glm::vec4(0.0f, BLEND, 0.0f, 0.0f));
 
 	GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1));
+	GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 
 	swap(buffer->m_irradiance_array);
 
@@ -398,6 +411,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		m_single_scattering_program->set_uniform("layer", layer);
 
 		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
+		GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 	}
 
 	swap(buffer->m_scattering_array);
@@ -441,6 +455,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		{
 			m_scattering_density_program->set_uniform("layer", layer);
 			GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
+			GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 		}
 
 		// ------------------------------------------------------------------
@@ -470,7 +485,8 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		m_indirect_irradiance_program->set_uniform("blend", glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
 
 		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1));
-		
+		GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+
 		swap(buffer->m_irradiance_array);
 
 		// ------------------------------------------------------------------
@@ -500,6 +516,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		{
 			m_multiple_scattering_program->set_uniform("layer", layer);
 			GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
+			GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
 		}
 
 		swap(buffer->m_scattering_array);

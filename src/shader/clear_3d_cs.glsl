@@ -1,4 +1,4 @@
-#include "constants.glsl"
+#include <constants.glsl>
 
 // ------------------------------------------------------------------
 // INPUTS -----------------------------------------------------------
@@ -18,7 +18,7 @@ layout (binding = 0, rgba32f) uniform image3D targetImage;
 
 void main()
 {
-    ivec3 uv = gl_GlobalInvocationID;
+    ivec3 uv = ivec3(gl_GlobalInvocationID);
     imageStore(targetImage, uv, vec4(0.0, 0.0, 0.0, 0.0));
 }
 

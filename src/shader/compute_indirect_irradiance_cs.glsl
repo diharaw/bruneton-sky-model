@@ -1,8 +1,9 @@
-#include "constants.glsl"
-#include "uniforms.glsl"
-#include "utility.glsl"
-#include "transmittance_functions.glsl"
-#include "irradiance_functions.glsl"
+#include <constants.glsl>
+#include <uniforms.glsl>
+#include <utility.glsl>
+#include <transmittance_functions.glsl>
+#include <scattering_functions.glsl>
+#include <irradiance_functions.glsl>
 
 // ------------------------------------------------------------------
 // INPUTS -----------------------------------------------------------
@@ -14,9 +15,9 @@ layout (local_size_x = LOCAL_SIZE, local_size_y = LOCAL_SIZE, local_size_z = 1) 
 // IMAGES -----------------------------------------------------------
 // ------------------------------------------------------------------
 
-layout (binding = 0, rgba32f) uniform image3D delta_irradiance;
-layout (binding = 1, rgba32f) uniform image3D irradiance_read;
-layout (binding = 2, rgba32f) uniform image3D irradiance_write;
+layout (binding = 0, rgba32f) uniform image2D delta_irradiance;
+layout (binding = 1, rgba32f) uniform image2D irradiance_read;
+layout (binding = 2, rgba32f) uniform image2D irradiance_write;
 
 // ------------------------------------------------------------------
 // UNIFORMS ---------------------------------------------------------
@@ -35,14 +36,14 @@ uniform sampler3D multiple_scattering;
 
 void main()
 {
-    ivec2 coord = gl_GlobalInvocationID.xy;
+    ivec2 coord = ivec2(gl_GlobalInvocationID.xy);
     vec2 frag_coord = coord + vec2(0.5, 0.5);
 
-    vec3 delta_irradiance = ComputeIndirectIrradianceTexture(single_rayleigh_scattering, single_mie_scattering, multiple_scattering, frag_coord, scattering_order);
+    vec3 delta_irradiance_value = ComputeIndirectIrradianceTexture(single_rayleigh_scattering, single_mie_scattering, multiple_scattering, frag_coord, scattering_order);
 
-    vec3 irradiance = RadianceToLuminance(delta_irradiance);
+    vec3 irradiance = RadianceToLuminance(delta_irradiance_value);
 
-    imageStore(delta_irradiance, coord, vec4(delta_irradiance, 1.0));
+    imageStore(delta_irradiance, coord, vec4(delta_irradiance_value, 1.0));
 
     imageStore(irradiance_write, coord, vec4(irradiance, 1.0));
 

@@ -191,7 +191,7 @@ Length ComputeOpticalLengthToTopAtmosphereBoundary(DensityProfile profile, Lengt
 DimensionlessSpectrum ComputeTransmittanceToTopAtmosphereBoundary(Length r, Number mu) 
 {
 
-  DimensionlessSpectrum density = 0;
+  DimensionlessSpectrum density = DimensionlessSpectrum(0.0);
   density += rayleigh_scattering * ComputeOpticalLengthToTopAtmosphereBoundary(RayleighDensity(), r, mu);
   density += mie_extinction * ComputeOpticalLengthToTopAtmosphereBoundary(MieDensity(), r, mu);
   density += absorption_extinction * ComputeOpticalLengthToTopAtmosphereBoundary(AbsorptionDensity(), r, mu);

@@ -249,7 +249,7 @@ vec4 GetScatteringTextureUvwzFromRMuMuSNu(
     Length d_min = r - bottom_radius;
     Length d_max = rho;
     u_mu = 0.5 - 0.5 * GetTextureCoordFromUnitRange(d_max == d_min ? 0.0 :
-        (d - d_min) / (d_max - d_min), SCATTERING_TEXTURE_MU_SIZE / 2.0);
+        (d - d_min) / (d_max - d_min), SCATTERING_TEXTURE_MU_SIZE / 2);
   } 
   else 
   {
@@ -260,7 +260,7 @@ vec4 GetScatteringTextureUvwzFromRMuMuSNu(
     Length d_min = top_radius - r;
     Length d_max = rho + H;
     u_mu = 0.5 + 0.5 * GetTextureCoordFromUnitRange(
-        (d - d_min) / (d_max - d_min), SCATTERING_TEXTURE_MU_SIZE / 2.0);
+        (d - d_min) / (d_max - d_min), SCATTERING_TEXTURE_MU_SIZE / 2);
   }
 
   Length d = DistanceToTopAtmosphereBoundary(bottom_radius, mu_s);
@@ -297,7 +297,7 @@ void GetRMuMuSNuFromScatteringTextureUvwz(
     // we can recover mu:
     Length d_min = r - bottom_radius;
     Length d_max = rho;
-    Length d = d_min + (d_max - d_min) * GetUnitRangeFromTextureCoord(1.0 - 2.0 * uvwz.z, SCATTERING_TEXTURE_MU_SIZE / 2.0);
+    Length d = d_min + (d_max - d_min) * GetUnitRangeFromTextureCoord(1.0 - 2.0 * uvwz.z, SCATTERING_TEXTURE_MU_SIZE / 2);
     mu = d == 0.0 * m ? Number(-1.0) : ClampCosine(-(rho * rho + d * d) / (2.0 * r * d));
     ray_r_mu_intersects_ground = true;
   } 
@@ -308,7 +308,7 @@ void GetRMuMuSNuFromScatteringTextureUvwz(
     // (r,mu_horizon) - from which we can recover mu:
     Length d_min = top_radius - r;
     Length d_max = rho + H;
-    Length d = d_min + (d_max - d_min) * GetUnitRangeFromTextureCoord(2.0 * uvwz.z - 1.0, SCATTERING_TEXTURE_MU_SIZE / 2.0);
+    Length d = d_min + (d_max - d_min) * GetUnitRangeFromTextureCoord(2.0 * uvwz.z - 1.0, SCATTERING_TEXTURE_MU_SIZE / 2);
     mu = d == 0.0 * m ? Number(1.0) : ClampCosine((H * H - rho * rho - d * d) / (2.0 * r * d));
     ray_r_mu_intersects_ground = false;
   }

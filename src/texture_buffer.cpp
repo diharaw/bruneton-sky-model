@@ -49,7 +49,6 @@ TextureBuffer::~TextureBuffer()
 	DW_SAFE_DELETE(m_delta_rayleigh_scattering_texture);
 	DW_SAFE_DELETE(m_delta_mie_scattering_texture);
 	DW_SAFE_DELETE(m_delta_scattering_density_texture);
-	DW_SAFE_DELETE(m_delta_multiple_scattering_texture);
 	DW_SAFE_DELETE(m_transmittance_array[0]);
 	DW_SAFE_DELETE(m_transmittance_array[1]);
 	DW_SAFE_DELETE(m_irradiance_array[0]);

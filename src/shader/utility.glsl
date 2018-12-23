@@ -88,7 +88,7 @@ Number mod(Number x, Number y)
 
 vec3 RadianceToLuminance(vec3 rad)
 {
-	return mul(luminanceFromRadiance, vec4(rad, 1)).rgb;
+  return (luminanceFromRadiance * vec4(rad, 1.0)).rgb;
 }
 
 #define TEX2D(tex, uv) texture(tex, uv)

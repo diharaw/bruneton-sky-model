@@ -1,8 +1,9 @@
-#include "constants.glsl"
-#include "uniforms.glsl"
-#include "utility.glsl"
-#include "transmittance_functions.glsl"
-#include "scattering_functions.glsl"
+#include <constants.glsl>
+#include <uniforms.glsl>
+#include <utility.glsl>
+#include <transmittance_functions.glsl>
+#include <scattering_functions.glsl>
+#include <irradiance_functions.glsl>
 
 // ------------------------------------------------------------------
 // INPUTS -----------------------------------------------------------
@@ -35,20 +36,20 @@ uniform sampler2D transmittance;
 
 void main()
 {
-    ivec3 coord = gl_GlobalInvocationID.xyz;
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
     coord.z = layer;
     vec3 frag_coord = coord + vec3(0.5,0.5,0.5);
 
     vec3 delta_rayleigh, delta_mie;
-    ComputeSingleScatteringTexture(transmittance, frag_coord, deltaRayleigh, deltaMie);
+    ComputeSingleScatteringTexture(transmittance, frag_coord, delta_rayleigh, delta_mie);
 
-    imageStore(delta_rayleigh_scattering, coord, vec4(deltaRayleigh, 1));
+    imageStore(delta_rayleigh_scattering, coord, vec4(delta_rayleigh, 1));
 
-    imageStore(delta_mie_scattering, coord, vec4(deltaMie, 1));
+    imageStore(delta_mie_scattering, coord, vec4(delta_mie, 1));
 
-    imageStore(scattering_write, coord, vec4(RadianceToLuminance(deltaRayleigh), RadianceToLuminance(deltaMie).r));
+    imageStore(scattering_write, coord, vec4(RadianceToLuminance(delta_rayleigh), RadianceToLuminance(delta_mie).r));
 
-    imageStore(single_mie_scattering_write, coord, vec4(RadianceToLuminance(deltaMie), 1));
+    imageStore(single_mie_scattering_write, coord, vec4(RadianceToLuminance(delta_mie), 1));
 
     if(blend[2] == 1)
         imageStore(scattering_write, coord, imageLoad(scattering_write, coord) + imageLoad(scattering_read, coord));

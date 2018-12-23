@@ -1,8 +1,9 @@
-#include "constants.glsl"
-#include "uniforms.glsl"
-#include "utility.glsl"
-#include "transmittance_functions.glsl"
-#include "scattering_functions.glsl"
+#include <constants.glsl>
+#include <uniforms.glsl>
+#include <utility.glsl>
+#include <transmittance_functions.glsl>
+#include <scattering_functions.glsl>
+#include <irradiance_functions.glsl>
 
 // ------------------------------------------------------------------
 // INPUTS -----------------------------------------------------------
@@ -35,7 +36,7 @@ uniform sampler2D irradiance;
 
 void main()
 {
-    ivec3 coord = gl_GlobalInvocationID.xyz;
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
     coord.z = layer;
     vec3 frag_coord = coord + vec3(0.5,0.5,0.5);
 

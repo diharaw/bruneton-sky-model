@@ -120,34 +120,34 @@
  * meter (m), nanometer (nm), radian (rad), steradian (sr), watt (watt) and lumen (lm):
  */
 
-static const Length m = 1.0;
-static const Wavelength nm = 1.0;
-static const Angle rad = 1.0;
-static const SolidAngle sr = 1.0;
-static const Power watt = 1.0;
-static const LuminousPower lm = 1.0;
+const Length m = 1.0;
+const Wavelength nm = 1.0;
+const Angle rad = 1.0;
+const SolidAngle sr = 1.0;
+const Power watt = 1.0;
+const LuminousPower lm = 1.0;
 
 /*
  * From which we can derive the units for some derived physical quantities,
  * as well as some derived units (kilometer km, kilocandela kcd, degree deg):
  */
 
-static const float PI = 3.14159265358979323846;
+const float PI = 3.14159265358979323846;
 
-static const Length km = 1000.0 * m;
-static const Area m2 = m * m;
-static const Volume m3 = m * m * m;
-static const Angle pi = PI * rad;
-static const Angle deg = pi / 180.0;
-static const Irradiance watt_per_square_meter = watt / m2;
-static const Radiance watt_per_square_meter_per_sr = watt / (m2 * sr);
-static const SpectralIrradiance watt_per_square_meter_per_nm = watt / (m2 * nm);
-static const SpectralRadiance watt_per_square_meter_per_sr_per_nm = watt / (m2 * sr * nm);
-static const SpectralRadianceDensity watt_per_cubic_meter_per_sr_per_nm = watt / (m3 * sr * nm);
-static const LuminousIntensity cd = lm / sr;
-static const LuminousIntensity kcd = 1000.0 * cd;
-static const Luminance cd_per_square_meter = cd / m2;
-static const Luminance kcd_per_square_meter = kcd / m2;
+const Length km = 1000.0 * m;
+const Area m2 = m * m;
+const Volume m3 = m * m * m;
+const Angle pi = PI * rad;
+const Angle deg = pi / 180.0;
+const Irradiance watt_per_square_meter = watt / m2;
+const Radiance watt_per_square_meter_per_sr = watt / (m2 * sr);
+const SpectralIrradiance watt_per_square_meter_per_nm = watt / (m2 * nm);
+const SpectralRadiance watt_per_square_meter_per_sr_per_nm = watt / (m2 * sr * nm);
+const SpectralRadianceDensity watt_per_cubic_meter_per_sr_per_nm = watt / (m3 * sr * nm);
+const LuminousIntensity cd = lm / sr;
+const LuminousIntensity kcd = 1000.0 * cd;
+const Luminance cd_per_square_meter = cd / m2;
+const Luminance kcd_per_square_meter = kcd / m2;
 
 /*
  * Atmosphere parameters

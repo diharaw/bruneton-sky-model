@@ -1,8 +1,9 @@
-#include "constants.glsl"
-#include "uniforms.glsl"
-#include "utility.glsl"
-#include "transmittance_functions.glsl"
-#include "irradiance_functions.glsl"
+#include <constants.glsl>
+#include <uniforms.glsl>
+#include <utility.glsl>
+#include <transmittance_functions.glsl>
+#include <scattering_functions.glsl>
+#include <irradiance_functions.glsl>
 
 // ------------------------------------------------------------------
 // INPUTS -----------------------------------------------------------
@@ -23,6 +24,7 @@ layout (binding = 2, rgba32f) uniform image3D scattering_write;
 // ------------------------------------------------------------------
 
 uniform vec4 blend;
+uniform int layer;
 
 uniform sampler2D transmittance;
 uniform sampler3D delta_scattering_density;
@@ -33,8 +35,10 @@ uniform sampler3D delta_scattering_density;
 
 void main()
 {
-    ivec2 coord = gl_GlobalInvocationID.xy;
-    vec2 frag_coord = coord + vec2(0.5, 0.5);
+    ivec3 coord = ivec3(gl_GlobalInvocationID);
+    coord.z = layer;
+
+    vec3 frag_coord = coord + vec3(0.5, 0.5, 0.5);
 
     float nu;
     vec3 delta_multiple_scattering_value = ComputeMultipleScatteringTexture(transmittance, delta_scattering_density, frag_coord, nu);

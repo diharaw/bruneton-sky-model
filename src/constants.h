@@ -1,3 +1,5 @@
+#pragma once
+
 enum LUMINANCE
 {
     // Render the spectral radiance at kLambdaR, kLambdaG, kLambdaB.

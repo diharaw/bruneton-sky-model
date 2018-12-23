@@ -42,28 +42,36 @@ AtmosphereModel::~AtmosphereModel()
 
 void AtmosphereModel::initialize(int num_scattering_orders)
 {
+	std::vector<std::string> defines;
+
+	if (m_use_luminance == LUMINANCE::NONE)
+		defines.push_back("RADIANCE_API_ENABLED");
+
+	if (m_combine_scattering_textures)
+		defines.push_back("COMBINED_SCATTERING_TEXTURES");
+
 	if (!dw::utility::create_compute_program("shaders/clear_2d_cs.glsl", &m_clear_2d_shader, &m_clear_2d_program))
 		DW_LOG_ERROR("Failed to load shaders");
 
 	if (!dw::utility::create_compute_program("shaders/clear_3d_cs.glsl", &m_clear_3d_shader, &m_clear_3d_program))
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_direct_irradiance_cs.glsl", &m_direct_irradiance_shader, &m_direct_irradiance_program))
+	if (!dw::utility::create_compute_program("shaders/compute_direct_irradiance_cs.glsl", &m_direct_irradiance_shader, &m_direct_irradiance_program), defines)
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_indirect_irradiance_cs.glsl", &m_indirect_irradiance_shader, &m_indirect_irradiance_program))
+	if (!dw::utility::create_compute_program("shaders/compute_indirect_irradiance_cs.glsl", &m_indirect_irradiance_shader, &m_indirect_irradiance_program), defines)
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_multiple_scattering_cs.glsl", &m_multiple_scattering_shader, &m_multiple_scattering_program))
+	if (!dw::utility::create_compute_program("shaders/compute_multiple_scattering_cs.glsl", &m_multiple_scattering_shader, &m_multiple_scattering_program), defines)
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_scattering_density_cs.glsl", &m_scattering_density_shader, &m_scattering_density_program))
+	if (!dw::utility::create_compute_program("shaders/compute_scattering_density_cs.glsl", &m_scattering_density_shader, &m_scattering_density_program), defines)
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_single_scattering_cs.glsl", &m_single_scattering_shader, &m_single_scattering_program))
+	if (!dw::utility::create_compute_program("shaders/compute_single_scattering_cs.glsl", &m_single_scattering_shader, &m_single_scattering_program), defines)
 		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/compute_transmittance_cs.glsl", &m_transmittance_shader, &m_transmittance_program))
+	if (!dw::utility::create_compute_program("shaders/compute_transmittance_cs.glsl", &m_transmittance_shader, &m_transmittance_program), defines)
 		DW_LOG_ERROR("Failed to load shaders");
 
 	TextureBuffer* buffer = new TextureBuffer(m_half_precision);
@@ -102,6 +110,8 @@ void AtmosphereModel::initialize(int num_scattering_orders)
 		// transmittance for the 3 wavelengths used at the last iteration. But we
 		// want the transmittance at kLambdaR, kLambdaG, kLambdaB instead, so we
 		// must recompute it here for these 3 wavelengths:
+		m_transmittance_program->use();
+
 		bind_compute_uniforms(m_transmittance_program, nullptr, nullptr);
 
 		buffer->m_transmittance_array[WRITE]->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_transmittance_array[WRITE]->internal_format());
@@ -110,7 +120,7 @@ void AtmosphereModel::initialize(int num_scattering_orders)
 
 		int NUM = CONSTANTS::NUM_THREADS;
 
-		glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM, 1);
+		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM, 1));
 
 		swap(buffer->m_transmittance_array);
 	}
@@ -321,6 +331,8 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 	// Compute Transmittance
 	// ------------------------------------------------------------------
 
+	m_transmittance_program->use();
+
 	bind_compute_uniforms(m_transmittance_program, lambdas, luminance_from_radiance);
 
 	// Compute the transmittance, and store it in transmittance_texture
@@ -328,13 +340,15 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 
 	m_transmittance_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
 
-	glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM_THREADS, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM_THREADS, 1);
+	GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM_THREADS, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM_THREADS, 1));
 
 	swap(buffer->m_transmittance_array);
 
 	// ------------------------------------------------------------------
 	// Compute Direct Irradiance
 	// ------------------------------------------------------------------
+
+	m_direct_irradiance_program->use();
 
 	bind_compute_uniforms(m_direct_irradiance_program, lambdas, luminance_from_radiance);
 
@@ -351,13 +365,15 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 
 	m_direct_irradiance_program->set_uniform("blend", glm::vec4(0.0f, BLEND, 0.0f, 0.0f));
 
-	glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1);
+	GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1));
 
 	swap(buffer->m_irradiance_array);
 
 	// ------------------------------------------------------------------
 	// Compute Single Scattering
 	// ------------------------------------------------------------------
+
+	m_single_scattering_program->use();
 
 	bind_compute_uniforms(m_single_scattering_program, lambdas, luminance_from_radiance);
 
@@ -381,7 +397,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 	{
 		m_single_scattering_program->set_uniform("layer", layer);
 
-		glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1);
+		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
 	}
 
 	swap(buffer->m_scattering_array);
@@ -394,6 +410,8 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		// ------------------------------------------------------------------
 		// Compute Scattering Density
 		// ------------------------------------------------------------------
+
+		m_scattering_density_program->use();
 
 		bind_compute_uniforms(m_scattering_density_program, lambdas, luminance_from_radiance);
 
@@ -422,12 +440,14 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		for (int layer = 0; layer < CONSTANTS::SCATTERING_DEPTH; ++layer)
 		{
 			m_scattering_density_program->set_uniform("layer", layer);
-			glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1);
+			GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
 		}
 
 		// ------------------------------------------------------------------
 		// Compute Indirect Irradiance
 		// ------------------------------------------------------------------
+
+		m_indirect_irradiance_program->use();
 
 		bind_compute_uniforms(m_indirect_irradiance_program, lambdas, luminance_from_radiance);
 
@@ -449,13 +469,15 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		m_indirect_irradiance_program->set_uniform("scattering_order", scattering_order - 1);
 		m_indirect_irradiance_program->set_uniform("blend", glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
 
-		glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1);
+		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1));
 		
 		swap(buffer->m_irradiance_array);
 
 		// ------------------------------------------------------------------
 		// Compute Multiple Scattering
 		// ------------------------------------------------------------------
+
+		m_multiple_scattering_program->use();
 
 		bind_compute_uniforms(m_multiple_scattering_program, lambdas, luminance_from_radiance);
 
@@ -477,7 +499,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		for (int layer = 0; layer < CONSTANTS::SCATTERING_DEPTH; ++layer)
 		{
 			m_multiple_scattering_program->set_uniform("layer", layer);
-			glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1);
+			GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
 		}
 
 		swap(buffer->m_scattering_array);

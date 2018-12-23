@@ -202,17 +202,30 @@ public:
     /// </summary>
     bool m_half_precision;
 
+	TextureBuffer* m_texture_buffer;
+
     dw::Texture* m_transmittance_texture = nullptr;
 	dw::Texture* m_scattering_texture = nullptr;
 	dw::Texture* m_irradiance_texture = nullptr;
 	dw::Texture* m_optional_single_mie_scattering_texture = nullptr;
-	dw::Shader* m_transmittance_shader = nullptr;
-	dw::Program* m_transmittance_program = nullptr;
-	dw::Program* m_compute_program = nullptr;
+
 	dw::Shader* m_clear_2d_shader = nullptr;
 	dw::Shader* m_clear_3d_shader = nullptr;
+	dw::Shader* m_transmittance_shader = nullptr;
+	dw::Shader* m_direct_irradiance_shader = nullptr;
+	dw::Shader* m_indirect_irradiance_shader = nullptr;
+	dw::Shader* m_multiple_scattering_shader = nullptr;
+	dw::Shader* m_scattering_density_shader = nullptr;
+	dw::Shader* m_single_scattering_shader = nullptr;
+
 	dw::Program* m_clear_2d_program = nullptr;
 	dw::Program* m_clear_3d_program = nullptr;
+	dw::Program* m_transmittance_program = nullptr;
+	dw::Program* m_direct_irradiance_program = nullptr;
+	dw::Program* m_indirect_irradiance_program = nullptr;
+	dw::Program* m_multiple_scattering_program = nullptr;
+	dw::Program* m_scattering_density_program = nullptr;
+	dw::Program* m_single_scattering_program = nullptr;
 
 public:
     AtmosphereModel();

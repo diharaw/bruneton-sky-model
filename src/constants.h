@@ -14,12 +14,10 @@ enum LUMINANCE
     PRECOMPUTED
 };
 
-// The conversion factor between watts and lumens.
-static const double MAX_LUMINOUS_EFFICACY = 683.0;
 // Values from "CIE (1931) 2-deg color matching functions", see
 // "http://web.archive.org/web/20081228084047/
 //  http://www.cvrl.org/database/data/cmfs/ciexyz31.txt".
-static const double CIE_2_DEG_COLOR_MATCHING_FUNCTIONS[] =
+static const double kCIE_2_DEG_COLOR_MATCHING_FUNCTIONS[] =
 {
 	360, 0.000129900000, 0.000003917000, 0.000606100000,
 	365, 0.000232100000, 0.000006965000, 0.001086000000,
@@ -119,7 +117,7 @@ static const double CIE_2_DEG_COLOR_MATCHING_FUNCTIONS[] =
 };
 // The conversion matrix from XYZ to linear sRGB color spaces.
 // Values from https://en.wikipedia.org/wiki/SRGB.
-static const double XYZ_TO_SRGB[] =
+static const double kXYZ_TO_SRGB[] =
 {
 	+3.2406, -1.5372, -0.4986,
 	-0.9689, +1.8758, +0.0415,

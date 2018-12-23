@@ -10,27 +10,62 @@ static double kDefaultLuminanceFromRadiance[] = { 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 
 
 AtmosphereModel::AtmosphereModel()
 {
-	if (!dw::utility::create_compute_program("shaders/clear_2d_cs.glsl", &m_clear_2d_shader, &m_clear_2d_program))
-		DW_LOG_ERROR("Failed to load shaders");
 
-	if (!dw::utility::create_compute_program("shaders/clear_3d_cs.glsl", &m_clear_3d_shader, &m_clear_3d_program))
-		DW_LOG_ERROR("Failed to load shaders");
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------------
 
 AtmosphereModel::~AtmosphereModel()
 {
-	DW_SAFE_DELETE(m_transmittance_texture);
-	DW_SAFE_DELETE(m_scattering_texture);
-	DW_SAFE_DELETE(m_irradiance_texture);
-	DW_SAFE_DELETE(m_optional_single_mie_scattering_texture);
+	DW_SAFE_DELETE(m_clear_2d_program);
+	DW_SAFE_DELETE(m_clear_3d_program);
+	DW_SAFE_DELETE(m_transmittance_program);
+	DW_SAFE_DELETE(m_direct_irradiance_program);
+	DW_SAFE_DELETE(m_indirect_irradiance_program);
+	DW_SAFE_DELETE(m_multiple_scattering_program);
+	DW_SAFE_DELETE(m_scattering_density_program);
+	DW_SAFE_DELETE(m_single_scattering_program);
+
+	DW_SAFE_DELETE(m_clear_2d_shader);
+	DW_SAFE_DELETE(m_clear_3d_shader);
+	DW_SAFE_DELETE(m_transmittance_shader);
+	DW_SAFE_DELETE(m_direct_irradiance_shader);
+	DW_SAFE_DELETE(m_indirect_irradiance_shader);
+	DW_SAFE_DELETE(m_multiple_scattering_shader);
+	DW_SAFE_DELETE(m_scattering_density_shader);
+	DW_SAFE_DELETE(m_single_scattering_shader);
+
+	DW_SAFE_DELETE(m_texture_buffer);
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------------
 
 void AtmosphereModel::initialize(int num_scattering_orders)
 {
+	if (!dw::utility::create_compute_program("shaders/clear_2d_cs.glsl", &m_clear_2d_shader, &m_clear_2d_program))
+		DW_LOG_ERROR("Failed to load shaders");
+
+	if (!dw::utility::create_compute_program("shaders/clear_3d_cs.glsl", &m_clear_3d_shader, &m_clear_3d_program))
+		DW_LOG_ERROR("Failed to load shaders");
+
+	if (!dw::utility::create_compute_program("shaders/compute_direct_irradiance_cs.glsl", &m_direct_irradiance_shader, &m_direct_irradiance_program))
+		DW_LOG_ERROR("Failed to load shaders");
+
+	if (!dw::utility::create_compute_program("shaders/compute_indirect_irradiance_cs.glsl", &m_indirect_irradiance_shader, &m_indirect_irradiance_program))
+		DW_LOG_ERROR("Failed to load shaders");
+
+	if (!dw::utility::create_compute_program("shaders/compute_multiple_scattering_cs.glsl", &m_multiple_scattering_shader, &m_multiple_scattering_program))
+		DW_LOG_ERROR("Failed to load shaders");
+
+	if (!dw::utility::create_compute_program("shaders/compute_scattering_density_cs.glsl", &m_scattering_density_shader, &m_scattering_density_program))
+		DW_LOG_ERROR("Failed to load shaders");
+
+	if (!dw::utility::create_compute_program("shaders/compute_single_scattering_cs.glsl", &m_single_scattering_shader, &m_single_scattering_program))
+		DW_LOG_ERROR("Failed to load shaders");
+
+	if (!dw::utility::create_compute_program("shaders/compute_transmittance_cs.glsl", &m_transmittance_shader, &m_transmittance_program))
+		DW_LOG_ERROR("Failed to load shaders");
+
 	TextureBuffer* buffer = new TextureBuffer(m_half_precision);
 	buffer->clear(m_clear_2d_program, m_clear_3d_program);
 
@@ -68,34 +103,29 @@ void AtmosphereModel::initialize(int num_scattering_orders)
 		// want the transmittance at kLambdaR, kLambdaG, kLambdaB instead, so we
 		// must recompute it here for these 3 wavelengths:
 		bind_compute_uniforms(m_transmittance_program, nullptr, nullptr);
+
 		buffer->m_transmittance_array[WRITE]->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_transmittance_array[WRITE]->internal_format());
-		m_transmittance_program->set_uniform("blend", glm::vec4(0, 0, 0, 0));
+
+		m_transmittance_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
 
 		int NUM = CONSTANTS::NUM_THREADS;
+
 		glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM, 1);
+
 		swap(buffer->m_transmittance_array);
 	}
 
 	//Grab ref to textures and mark as null in buffer so they are not released.
 	m_transmittance_texture = buffer->m_transmittance_array[READ];
-	buffer->m_transmittance_array[READ] = nullptr;
-
 	m_scattering_texture = buffer->m_scattering_array[READ];
-	buffer->m_scattering_array[READ] = nullptr;
-
 	m_irradiance_texture = buffer->m_irradiance_array[READ];
-	buffer->m_irradiance_array[READ] = nullptr;
 
 	if (m_combine_scattering_textures)
 		m_optional_single_mie_scattering_texture = nullptr;
 	else
-	{
 		m_optional_single_mie_scattering_texture = buffer->m_optional_single_mie_scattering_array[READ];
-		buffer->m_optional_single_mie_scattering_array[READ] = nullptr;
-	}
 
-	// Delete the temporary resources allocated at the begining of this method.
-	DW_SAFE_DELETE(buffer);
+	m_texture_buffer = buffer;
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------------
@@ -133,7 +163,7 @@ void AtmosphereModel::bind_rendering_uniforms(dw::Program* program)
 	program->set_uniform("bottom_radius", (float)(m_bottom_radius/ m_length_unit_in_meters));
 	program->set_uniform("top_radius", (float)(m_top_radius / m_length_unit_in_meters));
 	program->set_uniform("mie_phase_function_g", (float)m_mie_phase_function_g);
-	program->set_uniform("mu_s_min", (float)cosf(m_max_sun_zenith_angle));
+	program->set_uniform("mu_s_min", (float)cos(m_max_sun_zenith_angle));
 
 	glm::vec3 sky_spectral_radiance_to_luminance, sun_spectral_radiance_to_luminance;
 	sky_sun_radiance_to_luminance(sky_spectral_radiance_to_luminance, sun_spectral_radiance_to_luminance);
@@ -169,7 +199,7 @@ void AtmosphereModel::convert_spectrum_to_linear_srgb(double& r, double& g, doub
 		z += cie_color_matching_function_table_value(lambda, 3) * value;
 	}
 
-	const double* XYZ_TO_SRGB = &XYZ_TO_SRGB[0];
+	const double* XYZ_TO_SRGB = &kXYZ_TO_SRGB[0];
 	r = static_cast<double>(CONSTANTS::MAX_LUMINOUS_EFFICACY) * (XYZ_TO_SRGB[0] * x + XYZ_TO_SRGB[1] * y + XYZ_TO_SRGB[2] * z) * dlambda;
 	g = static_cast<double>(CONSTANTS::MAX_LUMINOUS_EFFICACY) * (XYZ_TO_SRGB[3] * x + XYZ_TO_SRGB[4] * y + XYZ_TO_SRGB[5] * z) * dlambda;
 	b = static_cast<double>(CONSTANTS::MAX_LUMINOUS_EFFICACY) * (XYZ_TO_SRGB[6] * x + XYZ_TO_SRGB[7] * y + XYZ_TO_SRGB[8] * z) * dlambda;
@@ -187,7 +217,7 @@ double AtmosphereModel::coeff(double lambda, int component)
 	double x = cie_color_matching_function_table_value(lambda, 1);
 	double y = cie_color_matching_function_table_value(lambda, 2);
 	double z = cie_color_matching_function_table_value(lambda, 3);
-	double sRGB = XYZ_TO_SRGB[component * 3 + 0] * x + XYZ_TO_SRGB[component * 3 + 1] * y + XYZ_TO_SRGB[component * 3 + 2] * z;
+	double sRGB = kXYZ_TO_SRGB[component * 3 + 0] * x + kXYZ_TO_SRGB[component * 3 + 1] * y + kXYZ_TO_SRGB[component * 3 + 2] * z;
 
 	return sRGB;
 }
@@ -284,7 +314,174 @@ void AtmosphereModel::sky_sun_radiance_to_luminance(glm::vec3& sky_spectral_radi
 
 void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double* luminance_from_radiance, bool blend, int num_scattering_orders)
 {
+	int BLEND = blend ? 1 : 0;
+	int NUM_THREADS = CONSTANTS::NUM_THREADS;
 
+	// ------------------------------------------------------------------
+	// Compute Transmittance
+	// ------------------------------------------------------------------
+
+	bind_compute_uniforms(m_transmittance_program, lambdas, luminance_from_radiance);
+
+	// Compute the transmittance, and store it in transmittance_texture
+	buffer->m_transmittance_array[WRITE];
+
+	m_transmittance_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
+
+	glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM_THREADS, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM_THREADS, 1);
+
+	swap(buffer->m_transmittance_array);
+
+	// ------------------------------------------------------------------
+	// Compute Direct Irradiance
+	// ------------------------------------------------------------------
+
+	bind_compute_uniforms(m_direct_irradiance_program, lambdas, luminance_from_radiance);
+
+	// Compute the direct irradiance, store it in delta_irradiance_texture and,
+	// depending on 'blend', either initialize irradiance_texture_ with zeros or
+	// leave it unchanged (we don't want the direct irradiance in
+	// irradiance_texture_, but only the irradiance from the sky).
+	buffer->m_irradiance_array[READ]->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_irradiance_array[READ]->internal_format());
+	buffer->m_irradiance_array[WRITE]->bind_image(1, 0, 0, GL_READ_WRITE, buffer->m_irradiance_array[WRITE]->internal_format());
+	buffer->m_delta_irradiance_texture->bind_image(2, 0, 0, GL_READ_WRITE, buffer->m_delta_irradiance_texture->internal_format());
+
+	if (m_direct_irradiance_program->set_uniform("transmittance", 0))
+		buffer->m_transmittance_array[READ]->bind(0);
+
+	m_direct_irradiance_program->set_uniform("blend", glm::vec4(0.0f, BLEND, 0.0f, 0.0f));
+
+	glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1);
+
+	swap(buffer->m_irradiance_array);
+
+	// ------------------------------------------------------------------
+	// Compute Single Scattering
+	// ------------------------------------------------------------------
+
+	bind_compute_uniforms(m_single_scattering_program, lambdas, luminance_from_radiance);
+
+	// Compute the rayleigh and mie single scattering, store them in
+	// delta_rayleigh_scattering_texture and delta_mie_scattering_texture, and
+	// either store them or accumulate them in scattering_texture_ and
+	// optional_single_mie_scattering_texture_.
+	buffer->m_delta_rayleigh_scattering_texture->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_delta_rayleigh_scattering_texture->internal_format());
+	buffer->m_delta_mie_scattering_texture->bind_image(1, 0, 0, GL_READ_WRITE, buffer->m_delta_mie_scattering_texture->internal_format());
+	buffer->m_scattering_array[READ]->bind_image(2, 0, 0, GL_READ_WRITE, buffer->m_scattering_array[READ]->internal_format());
+	buffer->m_scattering_array[WRITE]->bind_image(3, 0, 0, GL_READ_WRITE, buffer->m_scattering_array[WRITE]->internal_format());
+	buffer->m_optional_single_mie_scattering_array[READ]->bind_image(4, 0, 0, GL_READ_WRITE, buffer->m_optional_single_mie_scattering_array[READ]->internal_format());
+	buffer->m_optional_single_mie_scattering_array[WRITE]->bind_image(5, 0, 0, GL_READ_WRITE, buffer->m_optional_single_mie_scattering_array[WRITE]->internal_format());
+
+	if (m_single_scattering_program->set_uniform("transmittance", 0))
+		buffer->m_transmittance_array[READ]->bind(0);
+
+	m_single_scattering_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, BLEND, BLEND));
+
+	for (int layer = 0; layer < CONSTANTS::SCATTERING_DEPTH; ++layer)
+	{
+		m_single_scattering_program->set_uniform("layer", layer);
+
+		glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1);
+	}
+
+	swap(buffer->m_scattering_array);
+	swap(buffer->m_optional_single_mie_scattering_array);
+
+
+	// Compute the 2nd, 3rd and 4th order of scattering, in sequence.
+	for (int scattering_order = 2; scattering_order <= num_scattering_orders; ++scattering_order)
+	{
+		// ------------------------------------------------------------------
+		// Compute Scattering Density
+		// ------------------------------------------------------------------
+
+		bind_compute_uniforms(m_scattering_density_program, lambdas, luminance_from_radiance);
+
+		// Compute the scattering density, and store it in
+		// delta_scattering_density_texture.
+		buffer->m_delta_scattering_density_texture->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_delta_scattering_density_texture->internal_format());
+
+		if (m_scattering_density_program->set_uniform("transmittance", 0))
+			buffer->m_transmittance_array[READ]->bind(0);
+
+		if (m_scattering_density_program->set_uniform("single_rayleigh_scattering", 1))
+			buffer->m_delta_rayleigh_scattering_texture->bind(1);
+
+		if (m_scattering_density_program->set_uniform("single_mie_scattering", 2))
+			buffer->m_delta_mie_scattering_texture->bind(2);
+
+		if (m_scattering_density_program->set_uniform("multiple_scattering", 3))
+			buffer->m_delta_multiple_scattering_texture->bind(3);
+		
+		if (m_scattering_density_program->set_uniform("irradiance", 4))
+			buffer->m_delta_irradiance_texture->bind(4);
+
+		m_scattering_density_program->set_uniform("scattering_order", scattering_order);
+		m_scattering_density_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
+
+		for (int layer = 0; layer < CONSTANTS::SCATTERING_DEPTH; ++layer)
+		{
+			m_scattering_density_program->set_uniform("layer", layer);
+			glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1);
+		}
+
+		// ------------------------------------------------------------------
+		// Compute Indirect Irradiance
+		// ------------------------------------------------------------------
+
+		bind_compute_uniforms(m_indirect_irradiance_program, lambdas, luminance_from_radiance);
+
+		// Compute the indirect irradiance, store it in delta_irradiance_texture and
+		// accumulate it in irradiance_texture_.
+		buffer->m_delta_irradiance_texture->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_delta_irradiance_texture->internal_format());
+		buffer->m_irradiance_array[READ]->bind_image(1, 0, 0, GL_READ_WRITE, buffer->m_irradiance_array[READ]->internal_format());
+		buffer->m_irradiance_array[WRITE]->bind_image(2, 0, 0, GL_READ_WRITE, buffer->m_irradiance_array[WRITE]->internal_format());
+
+		if (m_indirect_irradiance_program->set_uniform("single_rayleigh_scattering", 0))
+			buffer->m_delta_rayleigh_scattering_texture->bind(0);
+
+		if (m_indirect_irradiance_program->set_uniform("single_mie_scattering", 1))
+			buffer->m_delta_mie_scattering_texture->bind(1);
+
+		if (m_indirect_irradiance_program->set_uniform("multiple_scattering", 2))
+			buffer->m_delta_multiple_scattering_texture->bind(2);
+	
+		m_indirect_irradiance_program->set_uniform("scattering_order", scattering_order - 1);
+		m_indirect_irradiance_program->set_uniform("blend", glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
+
+		glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1);
+		
+		swap(buffer->m_irradiance_array);
+
+		// ------------------------------------------------------------------
+		// Compute Multiple Scattering
+		// ------------------------------------------------------------------
+
+		bind_compute_uniforms(m_multiple_scattering_program, lambdas, luminance_from_radiance);
+
+		// Compute the multiple scattering, store it in
+		// delta_multiple_scattering_texture, and accumulate it in
+		// scattering_texture_.
+		buffer->m_delta_multiple_scattering_texture->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_delta_multiple_scattering_texture->internal_format());
+		buffer->m_scattering_array[READ]->bind_image(1, 0, 0, GL_READ_WRITE, buffer->m_scattering_array[READ]->internal_format());
+		buffer->m_scattering_array[WRITE]->bind_image(2, 0, 0, GL_READ_WRITE, buffer->m_scattering_array[WRITE]->internal_format());
+
+		if (m_multiple_scattering_program->set_uniform("transmittance", 0))
+			buffer->m_transmittance_array[READ]->bind(0);
+
+		if (m_multiple_scattering_program->set_uniform("delta_scattering_density", 1))
+			buffer->m_delta_scattering_density_texture->bind(1);
+
+		m_multiple_scattering_program->set_uniform("blend", glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
+
+		for (int layer = 0; layer < CONSTANTS::SCATTERING_DEPTH; ++layer)
+		{
+			m_multiple_scattering_program->set_uniform("layer", layer);
+			glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1);
+		}
+
+		swap(buffer->m_scattering_array);
+	}
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------------
@@ -329,7 +526,7 @@ double AtmosphereModel::cie_color_matching_function_table_value(double wavelengt
 	int row = (int)floor(u);
 
 	u -= row;
-	return CIE_2_DEG_COLOR_MATCHING_FUNCTIONS[4 * row + column] * (1.0 - u) + CIE_2_DEG_COLOR_MATCHING_FUNCTIONS[4 * (row + 1) + column] * u;
+	return kCIE_2_DEG_COLOR_MATCHING_FUNCTIONS[4 * row + column] * (1.0 - u) + kCIE_2_DEG_COLOR_MATCHING_FUNCTIONS[4 * (row + 1) + column] * u;
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------------
@@ -369,7 +566,7 @@ void AtmosphereModel::compute_spectral_radiance_to_luminance_factors(const std::
 		double y_bar = cie_color_matching_function_table_value(lambda, 2);
 		double z_bar = cie_color_matching_function_table_value(lambda, 3);
 
-		const double* xyz2srgb = &XYZ_TO_SRGB[0];
+		const double* xyz2srgb = &kXYZ_TO_SRGB[0];
 		double r_bar = xyz2srgb[0] * x_bar + xyz2srgb[1] * y_bar + xyz2srgb[2] * z_bar;
 		double g_bar = xyz2srgb[3] * x_bar + xyz2srgb[4] * y_bar + xyz2srgb[5] * z_bar;
 		double b_bar = xyz2srgb[6] * x_bar + xyz2srgb[7] * y_bar + xyz2srgb[8] * z_bar;

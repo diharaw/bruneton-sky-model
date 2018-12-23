@@ -32,8 +32,8 @@ protected:
 		if (!create_uniform_buffer())
 			return false;
 
-		if (!create_framebuffer())
-			return false;
+		//if (!create_framebuffer())
+		//	return false;
 
 		// Create camera.
 		create_camera();
@@ -208,8 +208,8 @@ private:
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glViewport(0, 0, m_width, m_height);
 
-		m_cubemap_program->set_uniform("s_Skybox", 0);
-		m_cubemap->bind(0);
+		//m_cubemap_program->set_uniform("s_Skybox", 0);
+		//m_cubemap->bind(0);
 
 		glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 	}

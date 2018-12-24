@@ -131,7 +131,7 @@ void AtmosphereModel::initialize(int num_scattering_orders)
 		int NUM = CONSTANTS::NUM_THREADS;
 
 		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM, 1));
-		GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+		GL_CHECK_ERROR(glFinish());
 
 		swap(buffer->m_transmittance_array);
 	}
@@ -162,7 +162,7 @@ void AtmosphereModel::bind_rendering_uniforms(dw::Program* program)
 	if (program->set_uniform("irradiance_texture", 2))
 		m_irradiance_texture->bind(2);
 
-	if (m_combine_scattering_textures)
+	if (!m_combine_scattering_textures)
 	{
 		if (program->set_uniform("single_mie_scattering_texture", 3))
 			m_optional_single_mie_scattering_texture->bind(3);
@@ -352,7 +352,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 	m_transmittance_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
 
 	GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::TRANSMITTANCE_WIDTH / NUM_THREADS, CONSTANTS::TRANSMITTANCE_HEIGHT / NUM_THREADS, 1));
-	GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+	GL_CHECK_ERROR(glFinish());
 
 	swap(buffer->m_transmittance_array);
 
@@ -372,13 +372,13 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 	buffer->m_irradiance_array[WRITE]->bind_image(1, 0, 0, GL_READ_WRITE, buffer->m_irradiance_array[WRITE]->internal_format());
 	buffer->m_delta_irradiance_texture->bind_image(2, 0, 0, GL_READ_WRITE, buffer->m_delta_irradiance_texture->internal_format());
 
-	if (m_direct_irradiance_program->set_uniform("transmittance", 0))
-		buffer->m_transmittance_array[READ]->bind(0);
+	if (m_direct_irradiance_program->set_uniform("transmittance", 3))
+		buffer->m_transmittance_array[READ]->bind(3);
 
 	m_direct_irradiance_program->set_uniform("blend", glm::vec4(0.0f, BLEND, 0.0f, 0.0f));
 
 	GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1));
-	GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+	GL_CHECK_ERROR(glFinish());
 
 	swap(buffer->m_irradiance_array);
 
@@ -401,8 +401,8 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 	buffer->m_optional_single_mie_scattering_array[READ]->bind_image(4, 0, 0, GL_READ_WRITE, buffer->m_optional_single_mie_scattering_array[READ]->internal_format());
 	buffer->m_optional_single_mie_scattering_array[WRITE]->bind_image(5, 0, 0, GL_READ_WRITE, buffer->m_optional_single_mie_scattering_array[WRITE]->internal_format());
 
-	if (m_single_scattering_program->set_uniform("transmittance", 0))
-		buffer->m_transmittance_array[READ]->bind(0);
+	if (m_single_scattering_program->set_uniform("transmittance", 6))
+		buffer->m_transmittance_array[READ]->bind(6);
 
 	m_single_scattering_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, BLEND, BLEND));
 
@@ -411,7 +411,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		m_single_scattering_program->set_uniform("layer", layer);
 
 		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
-		GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+		GL_CHECK_ERROR(glFinish());
 	}
 
 	swap(buffer->m_scattering_array);
@@ -433,20 +433,20 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		// delta_scattering_density_texture.
 		buffer->m_delta_scattering_density_texture->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_delta_scattering_density_texture->internal_format());
 
-		if (m_scattering_density_program->set_uniform("transmittance", 0))
-			buffer->m_transmittance_array[READ]->bind(0);
+		if (m_scattering_density_program->set_uniform("transmittance", 1))
+			buffer->m_transmittance_array[READ]->bind(1);
 
-		if (m_scattering_density_program->set_uniform("single_rayleigh_scattering", 1))
-			buffer->m_delta_rayleigh_scattering_texture->bind(1);
+		if (m_scattering_density_program->set_uniform("single_rayleigh_scattering", 2))
+			buffer->m_delta_rayleigh_scattering_texture->bind(2);
 
-		if (m_scattering_density_program->set_uniform("single_mie_scattering", 2))
-			buffer->m_delta_mie_scattering_texture->bind(2);
+		if (m_scattering_density_program->set_uniform("single_mie_scattering", 3))
+			buffer->m_delta_mie_scattering_texture->bind(3);
 
-		if (m_scattering_density_program->set_uniform("multiple_scattering", 3))
-			buffer->m_delta_multiple_scattering_texture->bind(3);
+		if (m_scattering_density_program->set_uniform("multiple_scattering", 4))
+			buffer->m_delta_multiple_scattering_texture->bind(4);
 		
-		if (m_scattering_density_program->set_uniform("irradiance", 4))
-			buffer->m_delta_irradiance_texture->bind(4);
+		if (m_scattering_density_program->set_uniform("irradiance", 5))
+			buffer->m_delta_irradiance_texture->bind(5);
 
 		m_scattering_density_program->set_uniform("scattering_order", scattering_order);
 		m_scattering_density_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
@@ -455,7 +455,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		{
 			m_scattering_density_program->set_uniform("layer", layer);
 			GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
-			GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+			GL_CHECK_ERROR(glFinish());
 		}
 
 		// ------------------------------------------------------------------
@@ -472,20 +472,20 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		buffer->m_irradiance_array[READ]->bind_image(1, 0, 0, GL_READ_WRITE, buffer->m_irradiance_array[READ]->internal_format());
 		buffer->m_irradiance_array[WRITE]->bind_image(2, 0, 0, GL_READ_WRITE, buffer->m_irradiance_array[WRITE]->internal_format());
 
-		if (m_indirect_irradiance_program->set_uniform("single_rayleigh_scattering", 0))
-			buffer->m_delta_rayleigh_scattering_texture->bind(0);
+		if (m_indirect_irradiance_program->set_uniform("single_rayleigh_scattering", 3))
+			buffer->m_delta_rayleigh_scattering_texture->bind(3);
 
-		if (m_indirect_irradiance_program->set_uniform("single_mie_scattering", 1))
-			buffer->m_delta_mie_scattering_texture->bind(1);
+		if (m_indirect_irradiance_program->set_uniform("single_mie_scattering", 4))
+			buffer->m_delta_mie_scattering_texture->bind(4);
 
-		if (m_indirect_irradiance_program->set_uniform("multiple_scattering", 2))
-			buffer->m_delta_multiple_scattering_texture->bind(2);
+		if (m_indirect_irradiance_program->set_uniform("multiple_scattering", 5))
+			buffer->m_delta_multiple_scattering_texture->bind(5);
 	
 		m_indirect_irradiance_program->set_uniform("scattering_order", scattering_order - 1);
 		m_indirect_irradiance_program->set_uniform("blend", glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
 
 		GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::IRRADIANCE_WIDTH / NUM_THREADS, CONSTANTS::IRRADIANCE_HEIGHT / NUM_THREADS, 1));
-		GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+		GL_CHECK_ERROR(glFinish());
 
 		swap(buffer->m_irradiance_array);
 
@@ -504,11 +504,11 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		buffer->m_scattering_array[READ]->bind_image(1, 0, 0, GL_READ_WRITE, buffer->m_scattering_array[READ]->internal_format());
 		buffer->m_scattering_array[WRITE]->bind_image(2, 0, 0, GL_READ_WRITE, buffer->m_scattering_array[WRITE]->internal_format());
 
-		if (m_multiple_scattering_program->set_uniform("transmittance", 0))
-			buffer->m_transmittance_array[READ]->bind(0);
+		if (m_multiple_scattering_program->set_uniform("transmittance", 3))
+			buffer->m_transmittance_array[READ]->bind(3);
 
-		if (m_multiple_scattering_program->set_uniform("delta_scattering_density", 1))
-			buffer->m_delta_scattering_density_texture->bind(1);
+		if (m_multiple_scattering_program->set_uniform("delta_scattering_density", 4))
+			buffer->m_delta_scattering_density_texture->bind(4);
 
 		m_multiple_scattering_program->set_uniform("blend", glm::vec4(0.0f, 1.0f, 0.0f, 0.0f));
 
@@ -516,7 +516,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 		{
 			m_multiple_scattering_program->set_uniform("layer", layer);
 			GL_CHECK_ERROR(glDispatchCompute(CONSTANTS::SCATTERING_WIDTH / NUM_THREADS, CONSTANTS::SCATTERING_HEIGHT / NUM_THREADS, 1));
-			GL_CHECK_ERROR(glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT));
+			GL_CHECK_ERROR(glFinish());
 		}
 
 		swap(buffer->m_scattering_array);

@@ -21,6 +21,7 @@ layout (binding = 0, rgba32f) uniform image3D delta_scattering_density;
 // UNIFORMS ---------------------------------------------------------
 // ------------------------------------------------------------------
 
+uniform vec4 blend;
 uniform int layer;
 uniform int scattering_order;
 

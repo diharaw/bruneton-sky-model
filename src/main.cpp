@@ -56,7 +56,7 @@ protected:
 
 		update_global_uniforms(m_global_uniforms);
 
-		ImGui::ShowDemoWindow();
+		ImGui::SliderAngle("Sun Angle", &m_sun_angle, 0.0f, 180.0f);
 
 		m_debug_draw.sphere(10.0f, glm::vec3(1000.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
@@ -223,7 +223,7 @@ private:
 		m_demo_program->set_uniform("exposure", m_use_luminance != LUMINANCE::NONE ? m_exposure * 1e-5f : m_exposure);
 		m_demo_program->set_uniform("earth_center", glm::vec3(0.0f, -kBottomRadius / kLengthUnitInMeters, 0.0f));
 		m_demo_program->set_uniform("sun_size", glm::vec2(tan(kSunAngularRadius), cos(kSunAngularRadius)));
-		m_demo_program->set_uniform("sun_direction", glm::vec3(0.0f, 1.0f, 0.0f) * -1.0f);
+		m_demo_program->set_uniform("sun_direction", glm::normalize(glm::vec3(0.0f, sin(m_sun_angle), cos(m_sun_angle))));
 
 		double white_point_r = 1.0;
 		double white_point_g = 1.0;
@@ -316,6 +316,8 @@ private:
 
 	void initialize_atmosphere()
 	{
+		m_sun_angle = glm::radians(180.0f);
+
 		// Values from "Reference Solar Spectral Irradiance: ASTM G-173", ETR column
 		// (see http://rredc.nrel.gov/solar/spectra/am1.5/ASTMG173/ASTMG173.html),
 		// summed and averaged in each bin (e.g. the value for 360nm is the average
@@ -464,6 +466,7 @@ private:
 	float m_springness = 1.0f;
 
 	// Atmosphere settings
+	float m_sun_angle = 0.0f;
 	float kSunAngularRadius = 0.00935f / 2.0f;
 	float kBottomRadius = 6360000.0f;
 	float kLengthUnitInMeters = 1000.0f;

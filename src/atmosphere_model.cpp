@@ -347,7 +347,7 @@ void AtmosphereModel::precompute(TextureBuffer* buffer, double* lambdas, double*
 	bind_compute_uniforms(m_transmittance_program, lambdas, luminance_from_radiance);
 
 	// Compute the transmittance, and store it in transmittance_texture
-	buffer->m_transmittance_array[WRITE];
+	buffer->m_transmittance_array[WRITE]->bind_image(0, 0, 0, GL_READ_WRITE, buffer->m_transmittance_array[WRITE]->internal_format());
 
 	m_transmittance_program->set_uniform("blend", glm::vec4(0.0f, 0.0f, 0.0f, 0.0f));
 

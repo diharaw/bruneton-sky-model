@@ -58,7 +58,7 @@ protected:
 
 		ImGui::ShowDemoWindow();
 
-		m_debug_draw.sphere(10.0f, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		m_debug_draw.sphere(10.0f, glm::vec3(1000.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
 		render_quad();
 

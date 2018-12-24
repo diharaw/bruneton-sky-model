@@ -23,6 +23,7 @@ struct GlobalUniforms
 };
 
 #define CAMERA_FAR_PLANE 10000.0f
+#define RELFECTION_MAP_SIZE 512
 
 class AtmosphericScattering : public dw::Application
 {
@@ -41,8 +42,11 @@ protected:
 
 		// Create camera.
 		create_camera();
+		create_cube();
+		create_meshes();
 
 		initialize_atmosphere();
+		initialize_reflection_map();
 
 		return true;
 	}
@@ -58,9 +62,11 @@ protected:
 
 		ImGui::SliderAngle("Sun Angle", &m_sun_angle, 0.0f, 180.0f);
 
-		m_debug_draw.sphere(10.0f, glm::vec3(1000.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		m_debug_draw.sphere(0.1f, glm::vec3(1000.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 
-		render_quad();
+		render_reflection_map();
+		render_scene();
+		render_sky();
 
         // Render debug draw.
         m_debug_draw.render(nullptr, m_width, m_height, m_debug_mode ? m_debug_camera->m_view_projection : m_main_camera->m_view_projection);
@@ -70,7 +76,8 @@ protected:
 
 	void shutdown() override
 	{
-		
+		dw::Mesh::unload(m_floor_mesh);
+		dw::Mesh::unload(m_bunny_mesh);
 	}
 
 	// -----------------------------------------------------------------------------------------------------------------------------------
@@ -167,26 +174,72 @@ private:
 		if (m_use_combined_textures)
 			defines.push_back("COMBINED_SCATTERING_TEXTURES");
 
-		m_demo_vs = std::unique_ptr<dw::Shader>(dw::Shader::create_from_file(GL_VERTEX_SHADER, "shader/demo_vs.glsl", defines));
-		m_demo_fs = std::unique_ptr<dw::Shader>(dw::Shader::create_from_file(GL_FRAGMENT_SHADER, "shader/demo_fs.glsl", defines));
-
-		if (!m_demo_vs || !m_demo_fs)
 		{
-			DW_LOG_FATAL("Failed to create Shaders");
-			return false;
+			m_mesh_vs = std::unique_ptr<dw::Shader>(dw::Shader::create_from_file(GL_VERTEX_SHADER, "shader/mesh_vs.glsl", defines));
+			m_mesh_fs = std::unique_ptr<dw::Shader>(dw::Shader::create_from_file(GL_FRAGMENT_SHADER, "shader/mesh_fs.glsl", defines));
+
+			if (!m_mesh_vs || !m_mesh_fs)
+			{
+				DW_LOG_FATAL("Failed to create Shaders");
+				return false;
+			}
+
+			// Create general shader program
+			dw::Shader* shaders[] = { m_mesh_vs.get(), m_mesh_fs.get() };
+			m_mesh_program = std::make_unique<dw::Program>(2, shaders);
+
+			if (!m_mesh_program)
+			{
+				DW_LOG_FATAL("Failed to create Shader Program");
+				return false;
+			}
+
+			m_mesh_program->uniform_block_binding("u_GlobalUBO", 0);
 		}
 
-		// Create general shader program
-		dw::Shader* shaders[] = { m_demo_vs.get(), m_demo_fs.get() };
-		m_demo_program = std::make_unique<dw::Program>(2, shaders);
-
-		if (!m_demo_program)
 		{
-			DW_LOG_FATAL("Failed to create Shader Program");
-			return false;
+			m_reflection_map_vs = std::unique_ptr<dw::Shader>(dw::Shader::create_from_file(GL_VERTEX_SHADER, "shader/reflection_map_vs.glsl", defines));
+			m_reflection_map_fs = std::unique_ptr<dw::Shader>(dw::Shader::create_from_file(GL_FRAGMENT_SHADER, "shader/reflection_map_fs.glsl", defines));
+
+			if (!m_reflection_map_vs || !m_reflection_map_fs)
+			{
+				DW_LOG_FATAL("Failed to create Shaders");
+				return false;
+			}
+
+			// Create general shader program
+			dw::Shader* shaders[] = { m_reflection_map_vs.get(), m_reflection_map_fs.get() };
+			m_reflection_map_program = std::make_unique<dw::Program>(2, shaders);
+
+			if (!m_reflection_map_program)
+			{
+				DW_LOG_FATAL("Failed to create Shader Program");
+				return false;
+			}
+
+			m_reflection_map_program->uniform_block_binding("u_GlobalUBO", 0);
 		}
 
-		m_demo_program->uniform_block_binding("u_GlobalUBO", 0);
+		{
+			m_cubemap_vs = std::unique_ptr<dw::Shader>(dw::Shader::create_from_file(GL_VERTEX_SHADER, "shader/cubemap_vs.glsl"));
+			m_cubemap_fs = std::unique_ptr<dw::Shader>(dw::Shader::create_from_file(GL_FRAGMENT_SHADER, "shader/cubemap_fs.glsl"));
+
+			if (!m_cubemap_vs || !m_cubemap_fs)
+			{
+				DW_LOG_FATAL("Failed to create Shaders");
+				return false;
+			}
+
+			// Create general shader program
+			dw::Shader* shaders[] = { m_cubemap_vs.get(), m_cubemap_fs.get() };
+			m_cubemap_program = std::make_unique<dw::Program>(2, shaders);
+
+			if (!m_cubemap_program)
+			{
+				DW_LOG_FATAL("Failed to create Shader Program");
+				return false;
+			}
+		}
 
 		return true;
 	}
@@ -205,41 +258,46 @@ private:
 
 	void create_camera()
 	{
-        m_main_camera = std::make_unique<dw::Camera>(60.0f, 0.1f, CAMERA_FAR_PLANE, float(m_width) / float(m_height), glm::vec3(0.0f, 5.0f, 20.0f), glm::vec3(0.0f, 0.0, -1.0f));
-        m_debug_camera = std::make_unique<dw::Camera>(60.0f, 0.1f, CAMERA_FAR_PLANE * 2.0f, float(m_width) / float(m_height), glm::vec3(0.0f, 5.0f, 20.0f), glm::vec3(0.0f, 0.0, -1.0f));
+        m_main_camera = std::make_unique<dw::Camera>(60.0f, 0.1f, CAMERA_FAR_PLANE, float(m_width) / float(m_height), glm::vec3(0.0f, 2.0f, 10.0f), glm::vec3(0.0f, 0.0, -1.0f));
+        m_debug_camera = std::make_unique<dw::Camera>(60.0f, 0.1f, CAMERA_FAR_PLANE * 2.0f, float(m_width) / float(m_height), glm::vec3(0.0f, 2.0f, 10.0f), glm::vec3(0.0f, 0.0, -1.0f));
 	}
 
 	// -----------------------------------------------------------------------------------------------------------------------------------
 
-	void render_quad()
+	void render_mesh(dw::Mesh* mesh, const std::unique_ptr<dw::Program>& program, glm::vec3 color, glm::mat4 model)
 	{
-		glDisable(GL_DEPTH_TEST);
-		glDisable(GL_CULL_FACE);
+		program->set_uniform("model", model);
+		program->set_uniform("color", color);
 
-		m_demo_program->use();
+		// Bind vertex array.
+		mesh->mesh_vertex_array()->bind();
 
-		m_model->bind_rendering_uniforms(m_demo_program.get());
+		dw::SubMesh* submeshes = mesh->sub_meshes();
 
-		m_demo_program->set_uniform("exposure", m_use_luminance != LUMINANCE::NONE ? m_exposure * 1e-5f : m_exposure);
-		m_demo_program->set_uniform("earth_center", glm::vec3(0.0f, -kBottomRadius / kLengthUnitInMeters, 0.0f));
-		m_demo_program->set_uniform("sun_size", glm::vec2(tan(kSunAngularRadius), cos(kSunAngularRadius)));
-		m_demo_program->set_uniform("sun_direction", glm::normalize(glm::vec3(0.0f, sin(m_sun_angle), cos(m_sun_angle))));
-
-		double white_point_r = 1.0;
-		double white_point_g = 1.0;
-		double white_point_b = 1.0;
-
-		if (m_do_white_balance)
+		for (uint32_t i = 0; i < mesh->sub_mesh_count(); i++)
 		{
-			m_model->convert_spectrum_to_linear_srgb(white_point_r, white_point_g, white_point_b);
-
-			double white_point = (white_point_r + white_point_g + white_point_b) / 3.0;
-			white_point_r /= white_point;
-			white_point_g /= white_point;
-			white_point_b /= white_point;
+			dw::SubMesh& submesh = submeshes[i];
+			// Issue draw call.
+			glDrawElementsBaseVertex(GL_TRIANGLES, submesh.index_count, GL_UNSIGNED_INT, (void*)(sizeof(unsigned int) * submesh.base_index), submesh.base_vertex);
 		}
+	}
 
-		m_demo_program->set_uniform("white_point", glm::vec3((float)white_point_r, (float)white_point_g, (float)white_point_b));
+	// -----------------------------------------------------------------------------------------------------------------------------------
+
+	void render_scene()
+	{
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_CULL_FACE);
+
+		m_mesh_program->use();
+
+		m_model->bind_rendering_uniforms(m_mesh_program.get());
+
+		m_mesh_program->set_uniform("exposure", m_use_luminance != LUMINANCE::NONE ? m_exposure * 1e-5f : m_exposure);
+		m_mesh_program->set_uniform("earth_center", glm::vec3(0.0f, -kBottomRadius / kLengthUnitInMeters, 0.0f));
+		m_mesh_program->set_uniform("sun_size", glm::vec2(tan(kSunAngularRadius), cos(kSunAngularRadius)));
+		m_mesh_program->set_uniform("sun_direction", glm::normalize(glm::vec3(0.0f, sin(m_sun_angle), cos(m_sun_angle))));
+		m_mesh_program->set_uniform("white_point", m_white_point);
 
 		m_global_ubo->bind_base(0);
 
@@ -247,9 +305,43 @@ private:
 		glViewport(0, 0, m_width, m_height);
 
 		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glm::mat4 m = glm::mat4(1.0f);
+		
+		glm::vec3 floor_scale = glm::vec3(1000.0f);
+		glm::vec3 bunny_scale = glm::vec3(2.0f);
+
+		render_mesh(m_floor_mesh, m_mesh_program, glm::vec3(0.5f, 0.5f, 0.5f), glm::translate(m, m_floor_pos) * glm::scale(glm::mat4(1.0f), floor_scale));
+		render_mesh(m_bunny_mesh, m_mesh_program, glm::vec3(0.8f, 0.8f, 0.8f), glm::translate(m, m_bunny_pos) * glm::scale(glm::mat4(1.0f), bunny_scale));
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------------------------
+	
+	void render_sky()
+	{
+		glDisable(GL_CULL_FACE);
+
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+		glViewport(0, 0, m_width, m_height);
+
+		glDepthFunc(GL_LEQUAL);
+
+		m_cubemap_program->use();
+
+		m_cube_vao->bind();
+
+		m_cubemap_program->set_uniform("projection", m_global_uniforms.projection);
+		m_cubemap_program->set_uniform("view", glm::mat4(glm::mat3(m_global_uniforms.view)));
+		m_cubemap_program->set_uniform("exposure", m_use_luminance != LUMINANCE::NONE ? m_exposure * 1e-5f : m_exposure);
+		m_cubemap_program->set_uniform("white_point", m_white_point);
+
+		if (m_cubemap_program->set_uniform("s_Skybox", 0))
+			m_reflection_map->bind(0);
+			
+		glDrawArrays(GL_TRIANGLES, 0, 36);
+
+		glDepthFunc(GL_LESS);
 	}
     
     // -----------------------------------------------------------------------------------------------------------------------------------
@@ -434,6 +526,165 @@ private:
 		int num_scattering_orders = 4;
 
 		m_model->initialize(num_scattering_orders);
+
+		double white_point_r = 1.0;
+		double white_point_g = 1.0;
+		double white_point_b = 1.0;
+
+		if (m_do_white_balance)
+		{
+			m_model->convert_spectrum_to_linear_srgb(white_point_r, white_point_g, white_point_b);
+
+			double white_point = (white_point_r + white_point_g + white_point_b) / 3.0;
+			white_point_r /= white_point;
+			white_point_g /= white_point;
+			white_point_b /= white_point;
+		}
+
+		m_white_point = glm::vec3(float(white_point_r), float(white_point_g), float(white_point_b));
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------------------------
+
+	void create_cube()
+	{
+		float cube_vertices[] =
+		{
+			// back face
+			-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+			1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+			1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f, // bottom-right         
+			1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f, // top-right
+			-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f, // bottom-left
+			-1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f, // top-left
+			// front face
+			-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+			1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f, // bottom-right
+			1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+			1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f, // top-right
+			-1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f, // top-left
+			-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f, // bottom-left
+			// left face
+			-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+			-1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-left
+			-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+			-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-left
+			-1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+			-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-right
+			// right face
+			1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+			1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+			1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f, // top-right         
+			1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f, // bottom-right
+			1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f, // top-left
+			1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f, // bottom-left     
+			// bottom face
+			-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+			1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f, // top-left
+			1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+			1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f, // bottom-left
+			-1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f, // bottom-right
+			-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f, // top-right
+			// top face
+			-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+			1.0f,  1.0f , 1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+			1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f, // top-right     
+			1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f, // bottom-right
+			-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f, // top-left
+			-1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f  // bottom-left        
+		};
+
+		m_cube_vbo = std::make_unique<dw::VertexBuffer>(GL_STATIC_DRAW, sizeof(cube_vertices), (void*)cube_vertices);
+
+		dw::VertexAttrib attribs[] =
+		{
+			{ 3,GL_FLOAT, false, 0, },
+			{ 3,GL_FLOAT, false, sizeof(float) * 3 },
+			{ 2,GL_FLOAT, false, sizeof(float) * 6 }
+		};
+
+		m_cube_vao = std::make_unique<dw::VertexArray>(m_cube_vbo.get(), nullptr, sizeof(float) * 8, 3, attribs);
+
+		if (!m_cube_vbo || !m_cube_vao)
+		{
+			DW_LOG_FATAL("Failed to create Vertex Buffers/Arrays");
+		}
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------------------------
+	
+	void create_meshes()
+	{
+		m_floor_mesh = dw::Mesh::load("mesh/plane.obj", false);
+		m_bunny_mesh = dw::Mesh::load("mesh/bunny.obj", false);
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------------------------
+
+	void initialize_reflection_map()
+	{
+		glm::mat4 capture_projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+		glm::mat4 capture_views[] =
+		{
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(-1.0f,  0.0f,  0.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  1.0f,  0.0f), glm::vec3(0.0f,  0.0f,  1.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, -1.0f,  0.0f), glm::vec3(0.0f,  0.0f, -1.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f,  1.0f), glm::vec3(0.0f, -1.0f,  0.0f)),
+			glm::lookAt(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f,  0.0f, -1.0f), glm::vec3(0.0f, -1.0f,  0.0f))
+		};
+
+		for (int i = 0; i < 6; i++)
+			m_reflection_views[i] = capture_projection * capture_views[i];
+
+		m_reflection_map = std::make_unique<dw::TextureCube>(RELFECTION_MAP_SIZE, RELFECTION_MAP_SIZE, 1, 1, GL_RGB16F, GL_RGB, GL_HALF_FLOAT);
+		m_reflection_map->set_min_filter(GL_LINEAR);
+		m_reflection_map->set_mag_filter(GL_LINEAR);
+
+		glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+		m_reflection_fbos.resize(6);
+
+		for (int i = 0; i < 6; i++)
+		{
+			m_reflection_fbos[i] = std::make_unique<dw::Framebuffer>();
+			m_reflection_fbos[i]->attach_render_target(0, m_reflection_map.get(), i, 0, 0);
+		}
+	}
+
+	// -----------------------------------------------------------------------------------------------------------------------------------
+
+	void render_reflection_map()
+	{
+		glDisable(GL_DEPTH_TEST);
+		glDisable(GL_CULL_FACE);
+
+		m_reflection_map_program->use();
+
+		m_model->bind_rendering_uniforms(m_reflection_map_program.get());
+
+		m_reflection_map_program->set_uniform("exposure", m_use_luminance != LUMINANCE::NONE ? m_exposure * 1e-5f : m_exposure);
+		m_reflection_map_program->set_uniform("earth_center", glm::vec3(0.0f, -kBottomRadius / kLengthUnitInMeters, 0.0f));
+		m_reflection_map_program->set_uniform("sun_size", glm::vec2(tan(kSunAngularRadius), cos(kSunAngularRadius)));
+		m_reflection_map_program->set_uniform("sun_direction", glm::normalize(glm::vec3(0.0f, sin(m_sun_angle), cos(m_sun_angle))));
+		m_reflection_map_program->set_uniform("white_point", m_white_point);
+
+		m_global_ubo->bind_base(0);
+
+		for (int i = 0; i < 6; i++)
+		{
+			m_reflection_map_program->set_uniform("view_projection", m_reflection_views[i]);
+
+			m_reflection_fbos[i]->bind();
+			glViewport(0, 0, RELFECTION_MAP_SIZE, RELFECTION_MAP_SIZE);
+
+			glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+			m_cube_vao->bind();
+
+			glDrawArrays(GL_TRIANGLES, 0, 36);
+		}
 	}
     
     // -----------------------------------------------------------------------------------------------------------------------------------
@@ -441,13 +692,34 @@ private:
 private:
 	// General GPU resources.
     std::unique_ptr<dw::UniformBuffer> m_global_ubo;
-	std::unique_ptr<dw::Shader>  m_demo_vs;
-	std::unique_ptr<dw::Shader>  m_demo_fs;
-	std::unique_ptr<dw::Program> m_demo_program;
+	std::unique_ptr<dw::Shader>  m_mesh_vs;
+	std::unique_ptr<dw::Shader>  m_mesh_fs;
+	std::unique_ptr<dw::Program> m_mesh_program;
 
     // Camera.
     std::unique_ptr<dw::Camera> m_main_camera;
     std::unique_ptr<dw::Camera> m_debug_camera;
+
+	// Reflection Map
+	std::unique_ptr<dw::TextureCube> m_reflection_map;
+	std::vector<std::unique_ptr<dw::Framebuffer>> m_reflection_fbos;
+	glm::mat4 m_reflection_views[6];
+	std::unique_ptr<dw::Shader>  m_reflection_map_vs;
+	std::unique_ptr<dw::Shader>  m_reflection_map_fs;
+	std::unique_ptr<dw::Program> m_reflection_map_program;
+
+	std::unique_ptr<dw::VertexBuffer> m_cube_vbo;
+	std::unique_ptr<dw::VertexArray> m_cube_vao;
+
+	std::unique_ptr<dw::Shader>  m_cubemap_vs;
+	std::unique_ptr<dw::Shader>  m_cubemap_fs;
+	std::unique_ptr<dw::Program> m_cubemap_program;
+
+	dw::Mesh* m_floor_mesh;
+	dw::Mesh* m_bunny_mesh;
+
+	glm::vec3 m_floor_pos = glm::vec3(0.0f);
+	glm::vec3 m_bunny_pos = glm::vec3(0.0f, -0.1f, 0.0f);
     
 	// Uniforms.
     GlobalUniforms m_global_uniforms;
@@ -466,6 +738,7 @@ private:
 	float m_springness = 1.0f;
 
 	// Atmosphere settings
+	glm::vec3 m_white_point;
 	float m_sun_angle = 0.0f;
 	float kSunAngularRadius = 0.00935f / 2.0f;
 	float kBottomRadius = 6360000.0f;

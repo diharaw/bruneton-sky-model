@@ -3,6 +3,9 @@ A compute shader based implementation of Eric Brunetons' recently updated Atmosp
 
 The compute shader implementation of the precomputation step is a direct OpenGL and GLSL port of the [Unity implementation](https://github.com/Scrawk/Brunetons-Improved-Atmospheric-Scattering) by Scrawk.
 
+## Demo
+Please check the Releases section for the demo binary along with the assets. Just extract it and run the executable!
+
 ## Screenshots
 
 ![AtmosphericScattering](data/atmosphere_1.jpg)

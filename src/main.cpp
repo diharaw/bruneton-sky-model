@@ -60,9 +60,10 @@ protected:
 
 		update_global_uniforms(m_global_uniforms);
 
-		ImGui::SliderAngle("Sun Angle", &m_sun_angle, 0.0f, 180.0f);
-
-		m_debug_draw.sphere(0.1f, glm::vec3(1000.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+		if (m_show_gui)
+		{
+			ImGui::SliderAngle("Sun Angle", &m_sun_angle, 0.0f, 180.0f);
+		}
 
 		render_reflection_map();
 		render_scene();
@@ -104,6 +105,9 @@ protected:
             m_sideways_speed = -m_camera_speed;
         else if(code == GLFW_KEY_D)
             m_sideways_speed = m_camera_speed;
+
+		if (code == GLFW_KEY_G)
+			m_show_gui = !m_show_gui;
     }
     
     // -----------------------------------------------------------------------------------------------------------------------------------
@@ -725,6 +729,7 @@ private:
     GlobalUniforms m_global_uniforms;
 
     // Camera controls.
+	bool m_show_gui = true;
     bool m_mouse_look = false;
     bool m_debug_mode = false;
     float m_heading_speed = 0.0f;

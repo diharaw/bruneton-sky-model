@@ -391,7 +391,7 @@ void main()
 
 	radiance = pow(vec3(1,1,1) - exp(-radiance / white_point * exposure), vec3(1.0 / 2.2));
 
-	PS_OUT_Color = vec4(1.0);
+	PS_OUT_Color = vec4(radiance, 1);
 }
 
 // ------------------------------------------------------------------

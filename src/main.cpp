@@ -56,6 +56,10 @@ protected:
 
 		update_global_uniforms(m_global_uniforms);
 
+		ImGui::ShowDemoWindow();
+
+		m_debug_draw.sphere(10.0f, glm::vec3(0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+
 		render_quad();
 
         // Render debug draw.
@@ -243,7 +247,7 @@ private:
 		glViewport(0, 0, m_width, m_height);
 
 		glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT);
 
 		glDrawArrays(GL_TRIANGLES, 0, 3);
 	}

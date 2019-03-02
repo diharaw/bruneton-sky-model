@@ -186,8 +186,6 @@ public:
     /// functions, and stored as illuminance values. Then only the
     /// luminance-based API functions are provided (see the above note).
     /// </summary>
-    int m_num_precomputed_wavelengths;
-
     inline int num_precomputed_wavelengths() { return m_use_luminance == LUMINANCE::PRECOMPUTED ? 15 : 3; }
 
     /// <summary>

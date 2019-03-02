@@ -145,6 +145,8 @@ void TextureBuffer::clear_texture(dw::Program* program, dw::Texture* tex)
 
 		glDispatchCompute(width / CONSTANTS::NUM_THREADS, height / CONSTANTS::NUM_THREADS, 1);
 	}
+
+	GL_CHECK_ERROR(glFinish());
 }
 
 // -----------------------------------------------------------------------------------------------------------------------------------

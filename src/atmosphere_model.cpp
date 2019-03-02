@@ -89,11 +89,11 @@ void AtmosphereModel::initialize(int num_scattering_orders)
 
 	// The actual precomputations depend on whether we want to store precomputed
 	// irradiance or illuminance values.
-	if (m_num_precomputed_wavelengths <= 3)
+	if (num_precomputed_wavelengths() <= 3)
 		precompute(buffer, nullptr, nullptr, false, num_scattering_orders);
 	else
 	{
-		int num_iterations = (m_num_precomputed_wavelengths + 2) / 3;
+		int num_iterations = (num_precomputed_wavelengths() + 2) / 3;
 		double dlambda = (kLambdaMax - kLambdaMin) / (3.0 * num_iterations);
 
 		for (int i = 0; i < num_iterations; ++i)
@@ -315,7 +315,7 @@ void AtmosphereModel::bind_density_layer(dw::Program* program, DensityProfileLay
 
 void AtmosphereModel::sky_sun_radiance_to_luminance(glm::vec3& sky_spectral_radiance_to_luminance, glm::vec3& sun_spectral_radiance_to_luminance)
 {
-	bool precompute_illuminance = m_num_precomputed_wavelengths > 3;
+	bool precompute_illuminance = num_precomputed_wavelengths() > 3;
 	double sky_k_r, sky_k_g, sky_k_b;
 
 	if (precompute_illuminance)

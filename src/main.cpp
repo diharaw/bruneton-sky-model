@@ -23,7 +23,7 @@ struct GlobalUniforms
 };
 
 #define CAMERA_FAR_PLANE 10000.0f
-#define RELFECTION_MAP_SIZE 512
+#define RELFECTION_MAP_SIZE 1024
 
 class AtmosphericScattering : public dw::Application
 {
@@ -63,6 +63,7 @@ protected:
 		if (m_show_gui)
 		{
 			ImGui::SliderAngle("Sun Angle", &m_sun_angle, 0.0f, 180.0f);
+			ImGui::InputFloat("Sun Radius", &kSunAngularRadius);
 		}
 
 		render_reflection_map();
@@ -745,7 +746,7 @@ private:
 	// Atmosphere settings
 	glm::vec3 m_white_point;
 	float m_sun_angle = 0.0f;
-	float kSunAngularRadius = 0.00935f / 2.0f;
+	float kSunAngularRadius = 0.01935f;// / 2.0f;
 	float kBottomRadius = 6360000.0f;
 	float kLengthUnitInMeters = 1000.0f;
 	bool m_use_constant_solar_spectrum = false;

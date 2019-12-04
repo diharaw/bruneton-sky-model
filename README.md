@@ -1,4 +1,4 @@
-# AtmosphericScattering
+# Bruneton Sky Model
 A compute shader based implementation of Eric Brunetons' recently updated Atmospheric Scattering implementation with a practical rasterization-based demo instead of the ray-tracing demo provided with Erics' own repository.
 
 The compute shader implementation of the precomputation step is a direct OpenGL and GLSL port of the [Unity implementation](https://github.com/Scrawk/Brunetons-Improved-Atmospheric-Scattering) by Scrawk.
